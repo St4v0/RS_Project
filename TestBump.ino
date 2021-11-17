@@ -5,7 +5,8 @@
 #include "pid.h"
 #include "beep.h"
 #include "actions.h"
-#include "bumpsensor.h"
+//#include "bumpsensor.h"
+#include "bump.h"
 
 
 Motors_c motors;
@@ -39,6 +40,8 @@ void setup() {
   bs.initialise();
   setupEncoder0();
   setupEncoder1();
+
+  bs.Calibrate_Bump_Sensors();
   
   Serial.begin(9600);
   delay(1000);
@@ -58,12 +61,8 @@ void setup() {
 void loop() {
   unsigned long current = millis();
   elapsed_t = current - bump_ts;
-  if(elapsed_t > 200){
-    bs.readBump();
-    Serial.print(bs.L_val);
-    Serial.print(",");
-    Serial.println(0);
-    //Serial.println(bs.R_val);
+  if(elapsed_t > 50){
+    bs.Read_Bump_Sensors();
     bump_ts = millis();
   }
 
