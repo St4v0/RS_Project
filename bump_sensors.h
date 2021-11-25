@@ -8,13 +8,13 @@
 #define LEFT_BUMP_SENSOR 4//left sensor pin number
 #define RIGHT_BUMP_SENSOR 5//right sensor pin number
 #define NB_BS_PIN 2
-#define R_EXPONENT_WEIGHT 0.08//Exponent weight for right sensor
+#define R_EXPONENT_WEIGHT 0.05//Exponent weight for right sensor
 #define L_EXPONENT_WEIGHT 0.05//Exponent weight for left sensor
 float Exponent_Weights[NB_BS_PIN] = {L_EXPONENT_WEIGHT, R_EXPONENT_WEIGHT};//array of exponent weights
 #define EMIT_PIN 11
 #define TIME_OUT 0
 #define MIN_TIME  2000//default minimum time (pior to calibration) based on observed values
-#define CALIBRATION_TIME 4000000 //calibration time in microseconds 
+#define CALIBRATION_TIME 4000000 //calibration time in microseconds 4 seconds  
 // Class to operate the linesensor(s).
 class BumpSensor_c {
   public:
@@ -31,7 +31,7 @@ class BumpSensor_c {
     }
 
     void Calibrate_Bump_Sensors(){
-      unsigned long temp_elapsed_time;
+      float temp_elapsed_time;
       float Moving_average = 0;
       unsigned long cal_start_time = micros();
       unsigned long elapsed_cal_time = 0;
@@ -39,12 +39,12 @@ class BumpSensor_c {
         PT_Charge();
         while(read_end[0] == false || read_end[1] == false){
           for(int Which_Sensor = 0; Which_Sensor < NB_BS_PIN; ++Which_Sensor){
-            temp_elapsed_time = micros() - start_time;         
+            temp_elapsed_time = (micros() - start_time)*0.1;         
             if(digitalRead(bs_pin[Which_Sensor]) == LOW && !read_end[Which_Sensor]){
               Which_Sensor == 0 ?  SUM[Which_Sensor] -= Left_Readings[INDEX] : SUM[Which_Sensor] -= Right_Readings[INDEX];
               Which_Sensor == 0 ?  Left_Readings[INDEX] = temp_elapsed_time : Right_Readings[INDEX] = temp_elapsed_time;
               SUM[Which_Sensor] += temp_elapsed_time;
-              Moving_average = static_cast<float>(SUM[Which_Sensor]*0.01)/WINDOW_SIZE;  
+              Moving_average = static_cast<float>(SUM[Which_Sensor])/WINDOW_SIZE;  
               read_end[Which_Sensor] = true;          
               if(max_average_time[Which_Sensor] < Moving_average) max_average_time[Which_Sensor] = Moving_average;
               if(min_average_time[Which_Sensor] > Moving_average) min_average_time[Which_Sensor] = temp_elapsed_time;
@@ -66,17 +66,17 @@ class BumpSensor_c {
     }
     
     void Read_Bump_Sensors(){
-      unsigned long temp_elapsed_time;
+      float temp_elapsed_time;
       PT_Charge();//charge the bump sensors
       while(done == false){    
         for(int Which_Sensor = 0; Which_Sensor < NB_BS_PIN; ++Which_Sensor){//loop through the sensor array
-          temp_elapsed_time = micros() - start_time;//take elapsed time
+          temp_elapsed_time = (micros() - start_time)*0.1;//take elapsed time
           if(digitalRead(bs_pin[Which_Sensor]) == LOW && !read_end[Which_Sensor]){//if sensor is discharged and hasn't been previously read
             Which_Sensor == 0 ?  SUM[Which_Sensor] -= Left_Readings[INDEX] : SUM[Which_Sensor] -= Right_Readings[INDEX];
-            elapsed_time[Which_Sensor] = temp_elapsed_time/10;
+            elapsed_time[Which_Sensor] = temp_elapsed_time;
             read_end[Which_Sensor] = true;
             Which_Sensor == 0 ?  Left_Readings[INDEX] = temp_elapsed_time : Right_Readings[INDEX] = temp_elapsed_time;
-            SUM[Which_Sensor] += temp_elapsed_time;
+            SUM[Which_Sensor] += (temp_elapsed_time);
             AVERAGE[Which_Sensor] = static_cast<float>(SUM[Which_Sensor])/WINDOW_SIZE;
             /*elapsed_time[Which_Sensor] = temp_elapsed_time/10;//store elapsed time
             AVERAGE[Which_Sensor] = ((1-Exponent_Weights[Which_Sensor])* prev_elapsed_time[Which_Sensor]) + (Exponent_Weights[Which_Sensor] * elapsed_time[Which_Sensor]);//Exponential moving average calculation
@@ -95,7 +95,7 @@ class BumpSensor_c {
         
     void getSensorCalibrationValue(){
       for(int i = 0; i < NB_BS_PIN; ++i){
-        if(elapsed_time[i] < min_average_time[i]){
+        if(AVERAGE[i] < min_average_time[i]){
           min_average_time[i] = AVERAGE[i];
           calculateScalingFactor();
         }
@@ -109,6 +109,12 @@ class BumpSensor_c {
 
     double getErrorLine(){
       return (sensors_measured_condition[0] - (sensors_measured_condition[1]));
+    }
+    double getWeightLeft(){
+      return (sensors_measured_condition[0])/(sensors_measured_condition[0]+sensors_measured_condition[1]);
+    }
+    double getWeightRight(){
+      return (sensors_measured_condition[1])/(sensors_measured_condition[0]+sensors_measured_condition[1]);
     }
     
     unsigned long Sensor_Time_Elapsed(int sensor){
@@ -134,6 +140,7 @@ class BumpSensor_c {
           Serial.print(", R ");
           Serial.println(elapsed_time[1]);*/
 //          Serial.print(", ");
+
           Serial.print("L ");
           Serial.print(AVERAGE[0]*1);
           Serial.print(", R ");
@@ -152,8 +159,8 @@ class BumpSensor_c {
     unsigned long Left_Readings[WINDOW_SIZE] = { 0 }; //dynamic readings for left sensor
     unsigned long start_time; //t_1
     unsigned long elapsed_time[NB_BS_PIN] = { 0 }; //to store elapsed time
-    unsigned long max_average_time[NB_BS_PIN] = { MIN_TIME, MIN_TIME }; //to store max discharge time duting Calibration
-    unsigned long min_average_time[NB_BS_PIN] = { 0, 0}; //to store min discharge time during Calibration
+    unsigned long max_average_time[NB_BS_PIN] = { 0, 0 }; //to store max discharge time duting Calibration
+    unsigned long min_average_time[NB_BS_PIN] = { MIN_TIME, MIN_TIME}; //to store min discharge time during Calibration
     double sensors_calibration_factor[NB_BS_PIN] = { 0 };//
     float sensors_measured_condition[NB_BS_PIN] = { 0 };
     void Start_Time(){
@@ -178,6 +185,7 @@ class BumpSensor_c {
       for(int i = 0; i < NB_BS_PIN; ++i){
         sensors_calibration_factor[i] = (static_cast<double>(1) / (max_average_time[i] - min_average_time[i]));
       }
+      Display_Lapsed_Calibration();
 //      Serial.print("\nFINISHED CALIBRATION!!!!!!");
 //      Serial.print(sensors_calibration_factor[0]);
 //      Serial.print(", ");
