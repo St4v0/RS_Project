@@ -103,7 +103,16 @@ class BumpSensor_c {
           max_average_time[i] = AVERAGE[i];
           calculateScalingFactor();
         }
-        sensors_measured_condition[i] = (AVERAGE[i] - min_average_time[i]) * sensors_calibration_factor[i];
+        if(min_average_time[0]-min_average_time[1]>0){ //min left > min right
+          diff_scale = 1 - (min_average_time[0]-min_average_time[1])/(min_average_time[0]-min_average_time[1]);  //calculating the % of difference bwt the 2 mins, diff stored as a float in private
+          sensors_measured_condition[0] = (AVERAGE[0] - min_average_time[0]) * sensors_calibration_factor[0]*diff_scale; //multiplying the highest sensor
+          sensors_measured_condition[1] = (AVERAGE[1] - min_average_time[1]) * sensors_calibration_factor[1];
+        }
+        else{ //min left < min right
+          diff_scale = 1 - (min_average_time[1]-min_average_time[0])/(min_average_time[0]-min_average_time[1]);
+          sensors_measured_condition[0] = (AVERAGE[0] - min_average_time[0]) * sensors_calibration_factor[0];
+          sensors_measured_condition[1] = (AVERAGE[1] - min_average_time[1]) * sensors_calibration_factor[1]*diff_scale;
+        }
       }
     }
 
@@ -148,6 +157,7 @@ class BumpSensor_c {
     }
     
   private:
+    float diff_scale;
     unsigned long prev_elapsed_time[NB_BS_PIN] = { 0 };
     int INDEX = 0;
     const int bs_pin[NB_BS_PIN] = {LEFT_BUMP_SENSOR, RIGHT_BUMP_SENSOR};//bump sensor pin value array
